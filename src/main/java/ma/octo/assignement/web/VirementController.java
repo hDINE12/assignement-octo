@@ -7,6 +7,7 @@ import ma.octo.assignement.dto.VirementDto;
 import ma.octo.assignement.exceptions.CompteNonExistantException;
 import ma.octo.assignement.exceptions.SoldeDisponibleInsuffisantException;
 import ma.octo.assignement.exceptions.TransactionException;
+import ma.octo.assignement.exceptions.UnexpectedErrorException;
 import ma.octo.assignement.repository.CompteRepository;
 import ma.octo.assignement.repository.UtilisateurRepository;
 import ma.octo.assignement.repository.VirementRepository;
@@ -15,127 +16,90 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
-import org.springframework.util.CollectionUtils;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
-import java.util.List;
 
-@RestController(value = "/virements")
+@RestController
+@RequestMapping(value = "/virements")
+
 class VirementController {
 
-    public static final int MONTANT_MAXIMAL = 10000;
+    public static final BigDecimal MONTANT_MAXIMAL = new BigDecimal("10000");
+
+    public static final BigDecimal MONTANT_MINIMAL = new BigDecimal("10");
 
     Logger LOGGER = LoggerFactory.getLogger(VirementController.class);
 
     @Autowired
-    private CompteRepository rep1;
+    private CompteRepository compteRepository;
     @Autowired
-    private VirementRepository re2;
+    private VirementRepository virementRepository;
     @Autowired
-    private AutiService monservice;
+    private AutiService autiService;
     @Autowired
-    private UtilisateurRepository re3;
+    private UtilisateurRepository utilisateurRepository;
 
-    @GetMapping("lister_virements")
-    List<Virement> loadAll() {
-        List<Virement> all = re2.findAll();
-
-        if (CollectionUtils.isEmpty(all)) {
-            return null;
-        } else {
-            return all;
-        }
-    }
-
-    @GetMapping("lister_comptes")
-    List<Compte> loadAllCompte() {
-        List<Compte> all = rep1.findAll();
-
-        if (CollectionUtils.isEmpty(all)) {
-            return null;
-        } else {
-            return all;
-        }
-    }
-
-    @GetMapping("lister_utilisateurs")
-    List<Utilisateur> loadAllUtilisateur() {
-        List<Utilisateur> all = re3.findAll();
-
-        if (CollectionUtils.isEmpty(all)) {
-            return null;
-        } else {
-            return all;
-        }
-    }
 
     @PostMapping("/executerVirements")
     @ResponseStatus(HttpStatus.CREATED)
-    public void createTransaction(@RequestBody VirementDto virementDto)
-            throws SoldeDisponibleInsuffisantException, CompteNonExistantException, TransactionException {
-        Compte c1 = rep1.findByNrCompte(virementDto.getNrCompteEmetteur());
-        Compte f12 = rep1
-                .findByNrCompte(virementDto.getNrCompteBeneficiaire());
+    public Virement createTransaction(@RequestBody VirementDto virementDto)
+            throws SoldeDisponibleInsuffisantException, CompteNonExistantException, TransactionException, UnexpectedErrorException {
 
-        if (c1 == null) {
-            System.out.println("Compte Non existant");
+        Compte compteEmetteur = compteRepository.findByNrCompte(virementDto.getNrCompteEmetteur());
+
+        Compte compteBeneficiaire = compteRepository.findByNrCompte(virementDto.getNrCompteBeneficiaire());
+
+        if (compteEmetteur == null) {
             throw new CompteNonExistantException("Compte Non existant");
         }
 
-        if (f12 == null) {
-            System.out.println("Compte Non existant");
+        if (compteBeneficiaire == null) {
             throw new CompteNonExistantException("Compte Non existant");
         }
 
-        if (virementDto.getMontantVirement().equals(null)) {
-            System.out.println("Montant vide");
+        if (virementDto.getMontantVirement().equals(null) || virementDto.getMontantVirement().equals(0)) {
             throw new TransactionException("Montant vide");
-        } else if (virementDto.getMontantVirement().intValue() == 0) {
-            System.out.println("Montant vide");
-            throw new TransactionException("Montant vide");
-        } else if (virementDto.getMontantVirement().intValue() < 10) {
-            System.out.println("Montant minimal de virement non atteint");
-            throw new TransactionException("Montant minimal de virement non atteint");
-        } else if (virementDto.getMontantVirement().intValue() > MONTANT_MAXIMAL) {
-            System.out.println("Montant maximal de virement dépassé");
+        }else if (virementDto.getMontantVirement().compareTo(MONTANT_MINIMAL) < 0) {
+            throw new TransactionException("Montant minimal de virement est 10");
+        } else if (virementDto.getMontantVirement().compareTo(MONTANT_MAXIMAL) > 0) {
             throw new TransactionException("Montant maximal de virement dépassé");
         }
 
-        if (virementDto.getMotif().length() < 0) {
-            System.out.println("Motif vide");
+        if (virementDto.getMotif().trim().equals("") || virementDto.getMotif() == null ) {
             throw new TransactionException("Motif vide");
         }
 
-        if (c1.getSolde().intValue() - virementDto.getMontantVirement().intValue() < 0) {
+        if (compteEmetteur.getSolde().compareTo(virementDto.getMontantVirement()) < 0) {
             LOGGER.error("Solde insuffisant pour l'utilisateur");
+            throw new SoldeDisponibleInsuffisantException("Solde insuffisant pour l'utilisateur");
         }
 
-        if (c1.getSolde().intValue() - virementDto.getMontantVirement().intValue() < 0) {
-            LOGGER.error("Solde insuffisant pour l'utilisateur");
+        compteEmetteur.setSolde(compteEmetteur.getSolde().subtract(virementDto.getMontantVirement()));
+
+        if(compteRepository.save(compteEmetteur) == null) {
+            throw new UnexpectedErrorException("Probleme se produit");
         }
 
-        c1.setSolde(c1.getSolde().subtract(virementDto.getMontantVirement()));
-        rep1.save(c1);
+        compteBeneficiaire.setSolde(compteBeneficiaire.getSolde().add(virementDto.getMontantVirement()));
 
-        f12
-                .setSolde(new BigDecimal(f12.getSolde().intValue() + virementDto.getMontantVirement().intValue()));
-        rep1.save(f12);
+        if(compteRepository.save(compteBeneficiaire) == null) {
+            throw new UnexpectedErrorException("Probleme se produit");
+        }
 
         Virement virement = new Virement();
         virement.setDateExecution(virementDto.getDate());
-        virement.setCompteBeneficiaire(f12);
-        virement.setCompteEmetteur(c1);
+        virement.setCompteBeneficiaire(compteBeneficiaire);
+        virement.setCompteEmetteur(compteEmetteur);
         virement.setMontantVirement(virementDto.getMontantVirement());
 
-        re2.save(virement);
+        virementRepository.save(virement);
 
-        monservice.auditVirement("Virement depuis " + virementDto.getNrCompteEmetteur() + " vers " + virementDto
+        autiService.auditVirement("Virement depuis " + virementDto.getNrCompteEmetteur() + " vers " + virementDto
                         .getNrCompteBeneficiaire() + " d'un montant de " + virementDto.getMontantVirement()
                         .toString());
+
+        return virement;
     }
 
-    private void save(Virement Virement) {
-        re2.save(Virement);
-    }
 }

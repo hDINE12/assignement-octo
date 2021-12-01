@@ -2,9 +2,11 @@ package ma.octo.assignement;
 
 import ma.octo.assignement.domain.Compte;
 import ma.octo.assignement.domain.Utilisateur;
+import ma.octo.assignement.domain.Versement;
 import ma.octo.assignement.domain.Virement;
 import ma.octo.assignement.repository.CompteRepository;
 import ma.octo.assignement.repository.UtilisateurRepository;
+import ma.octo.assignement.repository.VersementRepository;
 import ma.octo.assignement.repository.VirementRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
@@ -22,6 +24,9 @@ public class AssignementApplication implements CommandLineRunner {
 	private UtilisateurRepository utilisateurRepository;
 	@Autowired
 	private VirementRepository virementRepository;
+
+	@Autowired
+	private VersementRepository versementRepository;
 
 	public static void main(String[] args) {
 		SpringApplication.run(AssignementApplication.class, args);
@@ -70,5 +75,14 @@ public class AssignementApplication implements CommandLineRunner {
 		v.setMotifVirement("Assignment 2021");
 
 		virementRepository.save(v);
+
+		Versement versement = new Versement();
+		versement.setCompteBeneficiaire(compte1);
+		versement.setNom_prenom_emetteur(utilisateur2.getFirstname()+" "+utilisateur2.getLastname());
+		versement.setMotifVersement("Assignement 2021");
+		versement.setDateExecution(new Date());
+		versement.setMontantVersement(BigDecimal.valueOf(1000L));
+
+		versementRepository.save(versement);
 	}
 }

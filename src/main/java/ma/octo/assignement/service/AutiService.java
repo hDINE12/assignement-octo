@@ -1,8 +1,10 @@
 package ma.octo.assignement.service;
 
+import ma.octo.assignement.domain.AuditVersement;
 import ma.octo.assignement.domain.AuditVirement;
 import ma.octo.assignement.domain.util.EventType;
 import ma.octo.assignement.repository.AuditVirementRepository;
+import ma.octo.assignement.repository.AuditVersementRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,6 +21,9 @@ public class AutiService {
     @Autowired
     private AuditVirementRepository auditVirementRepository;
 
+    @Autowired
+    private AuditVersementRepository auditVersementRespositry;
+
     public void auditVirement(String message) {
 
         LOGGER.info("Audit de l'événement {}", EventType.VIREMENT);
@@ -34,9 +39,9 @@ public class AutiService {
 
         LOGGER.info("Audit de l'événement {}", EventType.VERSEMENT);
 
-        AuditVirement audit = new AuditVirement();
+        AuditVersement audit = new AuditVersement();
         audit.setEventType(EventType.VERSEMENT);
         audit.setMessage(message);
-        auditVirementRepository.save(audit);
+        auditVersementRespositry.save(audit);
     }
 }
